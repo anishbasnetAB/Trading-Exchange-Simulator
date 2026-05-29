@@ -10,6 +10,8 @@ interface EngineEvent {
 class MatchingEngineService extends EventEmitter {
   private process: ChildProcess | null = null;
   private buffer: string = '';
+  // Track orderId → userId so ORDER_UPDATE events can route to the right user channel
+  private orderOwners: Map<string, string> = new Map();
 
   start() {
     // Engine binary is mounted into container at /app/engine
@@ -59,6 +61,7 @@ class MatchingEngineService extends EventEmitter {
     price?: number;
     quantity: number;
   }) {
+    this.orderOwners.set(params.orderId, params.userId);
     const cmd = JSON.stringify({ action: 'NEW_ORDER', ...params });
     this.process?.stdin?.write(cmd + '\n');
   }
@@ -66,6 +69,15 @@ class MatchingEngineService extends EventEmitter {
   cancelOrder(symbol: string, orderId: string) {
     const cmd = JSON.stringify({ action: 'CANCEL_ORDER', symbol, orderId });
     this.process?.stdin?.write(cmd + '\n');
+  }
+
+  getOrderOwner(orderId: string): string | undefined {
+    return this.orderOwners.get(orderId);
+  }
+
+  // Call after terminal status so the map doesn't grow unbounded
+  clearOrderOwner(orderId: string): void {
+    this.orderOwners.delete(orderId);
   }
 
   isRunning() {

@@ -8,8 +8,11 @@ import { config } from './config';
 import { authRoutes } from './routes/auth';
 import { accountRoutes } from './routes/account';
 import { orderRoutes } from './routes/orders';
+import { tradeRoutes } from './routes/trades';
 import { authenticate } from './middleware/authenticate';
 import { engineService } from './services/engine';
+import { publisher } from './services/redis';
+import { startPersistenceWorker } from './workers/persistence';
 
 export async function buildApp() {
   const fastify = Fastify({
@@ -48,6 +51,7 @@ export async function buildApp() {
   await fastify.register(authRoutes, { prefix: '/auth' });
   await fastify.register(accountRoutes, { prefix: '/account' });
   await fastify.register(orderRoutes, { prefix: '/orders' });
+  await fastify.register(tradeRoutes, { prefix: '/trades' });
 
   // Health check
   fastify.get('/health', async (_req, reply) => {
@@ -78,11 +82,38 @@ export async function buildApp() {
 
   engineService.on('TRADE', (event) => {
     fastify.log.info({ event }, 'Trade executed');
+
+    // Broadcast to symbol channel — persistence worker and future websocket
+    // gateway both subscribe here
+    publisher.publish(
+      `market.trades.${event.symbol as string}`,
+      JSON.stringify(event)
+    ).catch((err) => fastify.log.error({ err }, 'Failed to publish TRADE'));
   });
 
   engineService.on('ORDER_UPDATE', (event) => {
     fastify.log.info({ event }, 'Order updated');
+
+    const orderId = event.orderId as string;
+    const userId = engineService.getOrderOwner(orderId);
+
+    if (userId) {
+      publisher.publish(
+        `private.user.${userId}.orders`,
+        JSON.stringify(event)
+      ).catch((err) => fastify.log.error({ err }, 'Failed to publish ORDER_UPDATE'));
+
+      // Free the map entry once the order reaches a terminal state
+      const status = event.status as string;
+      if (status === 'FILLED' || status === 'CANCELLED') {
+        engineService.clearOrderOwner(orderId);
+      }
+    }
   });
+
+  // ── Start persistence worker ───────────────────────────────
+  // Subscribes to market.trades.* and writes every trade + positions to Postgres
+  await startPersistenceWorker();
 
   return fastify;
 }
