@@ -17,11 +17,13 @@ endif()
 # We build the engine as a library so tests can link against it
 add_library(engine_lib
   src/Order.cpp
-  src/OrderBook.cpp
+  src/Orderbook.cpp
   src/MatchingEngine.cpp
 )
 
 target_include_directories(engine_lib PUBLIC include)
+
+target_include_directories(engine_lib PUBLIC include vendor)
 
 # ── Main executable ────────────────────────────────────────
 add_executable(engine src/main.cpp)

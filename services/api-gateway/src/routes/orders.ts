@@ -1,8 +1,9 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { authenticate } from '../middleware/authenticate';
-import { checkRisk } from '../db/risk';
+import { checkRisk } from '../services/risk';
 import { createOrder, getOrdersByUserId, getOrderById, updateOrderStatus } from '../db/orders';
+import { engineService } from '../services/engine';
 
 const createOrderSchema = z.object({
   symbol: z.enum(['AAPL', 'GOOGL', 'MSFT', 'TSLA', 'AMZN']),
@@ -11,7 +12,6 @@ const createOrderSchema = z.object({
   price: z.number().positive().optional(),
   quantity: z.number().positive(),
 }).refine(
-  // Limit orders must have a price
   (data) => data.type === 'MARKET' || data.price !== undefined,
   { message: 'Limit orders require a price' }
 );
@@ -40,17 +40,23 @@ export async function orderRoutes(fastify: FastifyInstance) {
       });
     }
 
-    // ── Create order in DB ───────────────────────────────────
+    // ── Save to DB ───────────────────────────────────────────
     const order = await createOrder({ userId, symbol, side, type, price, quantity });
 
-    // ── TODO Phase 7: send to matching engine via Redis ──────
-    // For now, mark as ACCEPTED immediately
+    // ── Send to matching engine ──────────────────────────────
+    engineService.submitOrder({
+      orderId: order.id,
+      userId: order.user_id,
+      symbol: order.symbol,
+      side: order.side,
+      orderType: order.type,
+      price: order.price ? parseFloat(order.price) : undefined,
+      quantity: parseFloat(order.quantity),
+    });
+
     const updated = await updateOrderStatus(order.id, 'ACCEPTED');
 
-    return reply.status(201).send({
-      success: true,
-      data: updated,
-    });
+    return reply.status(201).send({ success: true, data: updated });
   });
 
   // GET /orders — get all orders for current user
@@ -75,7 +81,10 @@ export async function orderRoutes(fastify: FastifyInstance) {
       });
     }
 
+    // Cancel in engine and DB
+    engineService.cancelOrder(order.symbol, id);
     const cancelled = await updateOrderStatus(id, 'CANCELLED');
+
     return reply.send({ success: true, data: cancelled });
   });
 }
