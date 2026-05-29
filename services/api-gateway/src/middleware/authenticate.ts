@@ -1,5 +1,5 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { verifyAccessToken } from '../utils/token';
+import { verifyAccessToken } from '../utils/tokens';
 
 // Attach this to any route that requires authentication
 // It reads the Bearer token, verifies it, and attaches the user to the request

@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createUser, findUserByEmail } from '../db/users';
 import { hashPassword, verifyPassword } from '../utils/hash';
-import { signAccessToken, signRefreshToken } from '../utils/token';
+import { signAccessToken, signRefreshToken } from '../utils/tokens';
 import { ApiResponse } from '../types';
 
 // Zod schemas — validate request body before touching any logic

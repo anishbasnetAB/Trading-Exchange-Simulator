@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-background text-slate-200 font-sans antialiased;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Thin, dark scrollbars to match the terminal aesthetic */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #1e2d4a transparent;
+  }
+  ::-webkit-scrollbar        { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track  { background: transparent; }
+  ::-webkit-scrollbar-thumb  { background-color: #1e2d4a; border-radius: 2px; }
+}
+
+/* CSS grid for the trading dashboard — template-areas don't have Tailwind equivalents */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 260px 1fr 280px;
+  grid-template-rows: auto 5fr 3fr 2fr;
+  grid-template-areas:
+    "header    header header"
+    "orderbook chart  orderentry"
+    "trades    trades positions"
+    "openorders openorders account";
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
+  background-color: #0a0e1a;
+}
+
+@media (max-width: 1024px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+    grid-template-areas:
+      "header"
+      "orderentry"
+      "orderbook"
+      "chart"
+      "trades"
+      "positions"
+      "openorders"
+      "account";
+    height: auto;
+    max-height: none;
+    overflow-y: auto;
+  }
+}

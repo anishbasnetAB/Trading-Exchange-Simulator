@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import websocket from '@fastify/websocket';
-import { verifyAccessToken } from '../utils/token';
+import { verifyAccessToken } from '../utils/tokens';
 import { addConnection, removeConnection, subscribe } from '../services/ws-manager';
 
 interface WsQuery {
@@ -28,7 +28,7 @@ export async function wsRoutes(fastify: FastifyInstance): Promise<void> {
     }
 
     // Cast needed: @fastify/websocket and ws have compatible but distinct nominal types
-    addConnection(user.userId, socket as unknown as import('ws').default);
+    addConnection(user.userId, socket as unknown as import('ws').WebSocket);
 
     socket.send(JSON.stringify({ type: 'CONNECTED', userId: user.userId }));
 
@@ -48,7 +48,7 @@ export async function wsRoutes(fastify: FastifyInstance): Promise<void> {
         const confirmed: string[] = [];
         for (const channel of msg.channels as string[]) {
           if (channel.startsWith('public:trades:')) {
-            subscribe(channel, socket as unknown as import('ws').default);
+            subscribe(channel, socket as unknown as import('ws').WebSocket);
             confirmed.push(channel);
           } else if (channel === 'private:orders') {
             // addConnection already registered this user — sendToUser routes to them directly
@@ -64,13 +64,13 @@ export async function wsRoutes(fastify: FastifyInstance): Promise<void> {
 
     socket.on('close', () => {
       clearInterval(heartbeat);
-      removeConnection(user.userId, socket as unknown as import('ws').default);
+      removeConnection(user.userId, socket as unknown as import('ws').WebSocket);
     });
 
     socket.on('error', (err: Error) => {
       fastify.log.error({ err }, 'WebSocket error');
       clearInterval(heartbeat);
-      removeConnection(user.userId, socket as unknown as import('ws').default);
+      removeConnection(user.userId, socket as unknown as import('ws').WebSocket);
     });
   });
 }
