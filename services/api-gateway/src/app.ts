@@ -4,6 +4,9 @@ import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import { config } from './config';
 import { FastifyError } from 'fastify';
+import { authRoutes } from './routes/auth';
+import cookie from '@fastify/cookie';
+
 
 export async function buildApp() {
     const fastify = Fastify({
@@ -30,6 +33,12 @@ export async function buildApp() {
     origin: config.NODE_ENV === 'production' ? 'https://yourdomain.com' : true,
     credentials: true, // allow cookies and auth headers cross-origin
   });
+
+  // register cookie plugin before auth routes
+await fastify.register(cookie);
+
+// register auth routes under /auth prefix
+await fastify.register(authRoutes, { prefix: '/auth' });
 
   // 100 requests per minute per IP — prevents brute force
   await fastify.register(rateLimit, {
@@ -61,5 +70,7 @@ export async function buildApp() {
     });
 
   return fastify;
+
+  
 }
 
