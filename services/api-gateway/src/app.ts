@@ -6,6 +6,7 @@ import { config } from './config';
 import { FastifyError } from 'fastify';
 import { authRoutes } from './routes/auth';
 import cookie from '@fastify/cookie';
+import { accountRoutes } from './routes/account';
 import { authenticate } from './middleware/authenticate';
 
 export async function buildApp() {
@@ -45,7 +46,7 @@ await fastify.register(authRoutes, { prefix: '/auth' });
     max: 100,
     timeWindow: '1 minute',
   });
-
+await fastify.register(accountRoutes, { prefix: '/account' });
   // Health check route — Docker and load balancers call this
   fastify.get('/health', async (_req, reply) => {
     return reply.send({ status: 'ok', uptime: process.uptime() });

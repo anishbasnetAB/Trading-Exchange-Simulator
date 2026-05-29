@@ -23,6 +23,7 @@ CREATE TABLE accounts (
   id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   cash_balance NUMERIC(18,8) NOT NULL DEFAULT 100000.00,
+  status       VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',  
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT accounts_user_unique UNIQUE(user_id),
