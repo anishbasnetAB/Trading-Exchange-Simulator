@@ -6,7 +6,7 @@ import { config } from './config';
 import { FastifyError } from 'fastify';
 import { authRoutes } from './routes/auth';
 import cookie from '@fastify/cookie';
-
+import { authenticate } from './middleware/authenticate';
 
 export async function buildApp() {
     const fastify = Fastify({
@@ -51,6 +51,11 @@ await fastify.register(authRoutes, { prefix: '/auth' });
     return reply.send({ status: 'ok', uptime: process.uptime() });
   });
 
+
+  // Protected test route — remove this after testing
+    fastify.get('/me', { preHandler: authenticate }, async (req, reply) => {
+    return reply.send({ success: true, data: req.user });
+    });
   // 404 handler for any route that doesn't exist
   fastify.setNotFoundHandler((_req, reply) => {
     reply.status(404).send({ success: false, error: 'Route not found' });
