@@ -4,6 +4,7 @@ import { authenticate } from '../middleware/authenticate';
 import { checkRisk } from '../services/risk';
 import { createOrder, getOrdersByUserId, getOrderById, updateOrderStatus } from '../db/orders';
 import { engineService } from '../services/engine';
+import { logAuditEvent } from '../db/audit';
 
 const createOrderSchema = z.object({
   symbol: z.enum(['AAPL', 'GOOGL', 'MSFT', 'TSLA', 'AMZN']),
@@ -30,10 +31,12 @@ export async function orderRoutes(fastify: FastifyInstance) {
 
     const { symbol, side, type, price, quantity } = body.data;
     const userId = req.user!.userId;
+    const ip = req.ip;
 
     // ── Risk check ───────────────────────────────────────────
     const risk = await checkRisk({ userId, symbol, side, type, price, quantity });
     if (!risk.approved) {
+      logAuditEvent('RISK_FAILURE', userId, ip, { symbol, side, type, price, quantity, reason: risk.reason });
       return reply.status(400).send({
         success: false,
         error: `Risk check failed: ${risk.reason}`,
@@ -56,6 +59,8 @@ export async function orderRoutes(fastify: FastifyInstance) {
 
     const updated = await updateOrderStatus(order.id, 'ACCEPTED');
 
+    logAuditEvent('ORDER_PLACED', userId, ip, { orderId: order.id, symbol, side, type, price, quantity });
+
     return reply.status(201).send({ success: true, data: updated });
   });
 
@@ -68,7 +73,8 @@ export async function orderRoutes(fastify: FastifyInstance) {
   // DELETE /orders/:id — cancel an order
   fastify.delete('/:id', { preHandler: authenticate }, async (req, reply) => {
     const { id } = req.params as { id: string };
-    const order = await getOrderById(id, req.user!.userId);
+    const userId = req.user!.userId;
+    const order = await getOrderById(id, userId);
 
     if (!order) {
       return reply.status(404).send({ success: false, error: 'Order not found' });
@@ -81,9 +87,10 @@ export async function orderRoutes(fastify: FastifyInstance) {
       });
     }
 
-    // Cancel in engine and DB
     engineService.cancelOrder(order.symbol, id);
     const cancelled = await updateOrderStatus(id, 'CANCELLED');
+
+    logAuditEvent('ORDER_CANCELLED', userId, req.ip, { orderId: id, symbol: order.symbol });
 
     return reply.send({ success: true, data: cancelled });
   });

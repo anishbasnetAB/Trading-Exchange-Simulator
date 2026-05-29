@@ -30,21 +30,36 @@ export async function buildApp() {
       },
     },
     trustProxy: true,
+    // Reject bodies over 1 MB — guards against request body stuffing attacks
+    bodyLimit: 1_048_576,
   });
 
-  // ── Security ───────────────────────────────────────────────
+  // ── Security headers ───────────────────────────────────────
+  // Helmet sets: X-Content-Type-Options, X-Frame-Options, X-XSS-Protection,
+  // Strict-Transport-Security, and others on every response via onSend hook
   await fastify.register(helmet, {
     contentSecurityPolicy: config.NODE_ENV === 'production',
   });
 
+  // ── CORS — restrict to known frontend origin ───────────────
+  // Avoid wildcard (true) in all environments; browsers enforce this,
+  // wildcard would also prevent credentials from being sent
   await fastify.register(cors, {
-    origin: config.NODE_ENV === 'production' ? 'https://yourdomain.com' : true,
+    origin: config.NODE_ENV === 'production'
+      ? 'https://yourdomain.com'
+      : 'http://localhost:3000',
     credentials: true,
   });
 
+  // ── Global rate limit + per-route overrides ────────────────
   await fastify.register(rateLimit, {
     max: 100,
     timeWindow: '1 minute',
+    // Uniform error shape — callers can't distinguish our envelope from defaults
+    errorResponseBuilder: (_req, context) => ({
+      success: false,
+      error: `Too many requests — retry in ${Math.ceil(context.ttl / 1000)}s`,
+    }),
   });
 
   // ── Plugins ────────────────────────────────────────────────
@@ -68,6 +83,25 @@ export async function buildApp() {
     return reply.send({ success: true, data: req.user });
   });
 
+  // Dev-only: verify security headers are present on every response.
+  // Use `curl -sI http://localhost:4000/security-check` to inspect headers.
+  // Helmet adds headers in onSend, so they won't appear in reply.getHeaders()
+  // inside the handler — check the actual HTTP response instead.
+  if (config.NODE_ENV !== 'production') {
+    fastify.get('/security-check', async (_req, reply) => {
+      return reply.send({
+        success: true,
+        note: 'Run: curl -sI http://localhost:4000/security-check',
+        expectedHeaders: {
+          'x-content-type-options': 'nosniff',
+          'x-frame-options': 'SAMEORIGIN',
+          'x-xss-protection': '0',
+          'strict-transport-security': 'max-age=15552000; includeSubDomains',
+        },
+      });
+    });
+  }
+
   // ── Error handlers ─────────────────────────────────────────
   fastify.setNotFoundHandler((_req, reply) => {
     reply.status(404).send({ success: false, error: 'Route not found' });
@@ -82,14 +116,10 @@ export async function buildApp() {
   });
 
   // ── Start matching engine ──────────────────────────────────
-  // Must be inside buildApp so fastify.log is available
   engineService.start();
 
   engineService.on('TRADE', (event) => {
     fastify.log.info({ event }, 'Trade executed');
-
-    // Broadcast to symbol channel — persistence worker and future websocket
-    // gateway both subscribe here
     publisher.publish(
       `market.trades.${event.symbol as string}`,
       JSON.stringify(event)
@@ -98,17 +128,13 @@ export async function buildApp() {
 
   engineService.on('ORDER_UPDATE', (event) => {
     fastify.log.info({ event }, 'Order updated');
-
     const orderId = event.orderId as string;
     const userId = engineService.getOrderOwner(orderId);
-
     if (userId) {
       publisher.publish(
         `private.user.${userId}.orders`,
         JSON.stringify(event)
       ).catch((err) => fastify.log.error({ err }, 'Failed to publish ORDER_UPDATE'));
-
-      // Free the map entry once the order reaches a terminal state
       const status = event.status as string;
       if (status === 'FILLED' || status === 'CANCELLED') {
         engineService.clearOrderOwner(orderId);
@@ -117,12 +143,9 @@ export async function buildApp() {
   });
 
   // ── Start persistence worker ───────────────────────────────
-  // Subscribes to market.trades.* and writes every trade + positions to Postgres
   await startPersistenceWorker();
 
   // ── WebSocket Redis bridge ─────────────────────────────────
-  // The persistence worker already subscribed to market.trades.* on this connection.
-  // We add private.user.*.orders here so order status reaches connected clients.
   await subscriber.psubscribe('private.user.*.orders');
 
   subscriber.on('pmessage', (_pattern, channel, message) => {
@@ -134,7 +157,6 @@ export async function buildApp() {
           JSON.stringify({ channel: `public:trades:${symbol}`, data: JSON.parse(message) })
         );
       } else if (channel.startsWith('private.user.') && channel.endsWith('.orders')) {
-        // Strip 'private.user.' prefix and '.orders' suffix to get the UUID
         const userId = channel.slice('private.user.'.length, -'.orders'.length);
         sendToUser(
           userId,

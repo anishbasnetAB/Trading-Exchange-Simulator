@@ -1,3 +1,17 @@
+# ─────────────────────────────────────────────────────────────
+# Service visibility
+#   PUBLIC  (reachable from the host / internet):
+#     api-gateway  :4000  — REST + WebSocket
+#     frontend     :3000  — React dev server
+#   INTERNAL ONLY (exchange_net, no host routing in production):
+#     postgres     :5432  — database
+#     redis        :6379  — pub/sub + cache
+#
+# DEV NOTE: postgres and redis expose host ports below for local
+# tooling (psql, redis-cli). In production, remove those `ports:`
+# blocks so the services are only reachable inside exchange_net.
+# ─────────────────────────────────────────────────────────────
+
 services:
 
   postgres:
@@ -8,6 +22,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+    # DEV ONLY — remove in production to keep postgres off the host network
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
@@ -26,6 +41,7 @@ services:
     container_name: exchange_redis
     restart: unless-stopped
     command: redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes
+    # DEV ONLY — remove in production to keep redis off the host network
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
