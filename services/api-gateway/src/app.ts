@@ -7,6 +7,7 @@ import { FastifyError } from 'fastify';
 import { authRoutes } from './routes/auth';
 import cookie from '@fastify/cookie';
 import { accountRoutes } from './routes/account';
+import { orderRoutes } from './routes/orders';
 import { authenticate } from './middleware/authenticate';
 
 export async function buildApp() {
@@ -35,6 +36,7 @@ export async function buildApp() {
     credentials: true, // allow cookies and auth headers cross-origin
   });
 
+  await fastify.register(orderRoutes, { prefix: '/orders' });
   // register cookie plugin before auth routes
 await fastify.register(cookie);
 
