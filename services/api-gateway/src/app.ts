@@ -9,10 +9,13 @@ import { authRoutes } from './routes/auth';
 import { accountRoutes } from './routes/account';
 import { orderRoutes } from './routes/orders';
 import { tradeRoutes } from './routes/trades';
+import { wsRoutes } from './routes/ws';
+import { orderbookRoutes } from './routes/orderbook';
 import { authenticate } from './middleware/authenticate';
 import { engineService } from './services/engine';
-import { publisher } from './services/redis';
+import { publisher, subscriber } from './services/redis';
 import { startPersistenceWorker } from './workers/persistence';
+import { broadcast, sendToUser } from './services/ws-manager';
 
 export async function buildApp() {
   const fastify = Fastify({
@@ -52,6 +55,8 @@ export async function buildApp() {
   await fastify.register(accountRoutes, { prefix: '/account' });
   await fastify.register(orderRoutes, { prefix: '/orders' });
   await fastify.register(tradeRoutes, { prefix: '/trades' });
+  await fastify.register(orderbookRoutes, { prefix: '/orderbook' });
+  await fastify.register(wsRoutes);
 
   // Health check
   fastify.get('/health', async (_req, reply) => {
@@ -114,6 +119,32 @@ export async function buildApp() {
   // ── Start persistence worker ───────────────────────────────
   // Subscribes to market.trades.* and writes every trade + positions to Postgres
   await startPersistenceWorker();
+
+  // ── WebSocket Redis bridge ─────────────────────────────────
+  // The persistence worker already subscribed to market.trades.* on this connection.
+  // We add private.user.*.orders here so order status reaches connected clients.
+  await subscriber.psubscribe('private.user.*.orders');
+
+  subscriber.on('pmessage', (_pattern, channel, message) => {
+    try {
+      if (channel.startsWith('market.trades.')) {
+        const symbol = channel.slice('market.trades.'.length);
+        broadcast(
+          `public:trades:${symbol}`,
+          JSON.stringify({ channel: `public:trades:${symbol}`, data: JSON.parse(message) })
+        );
+      } else if (channel.startsWith('private.user.') && channel.endsWith('.orders')) {
+        // Strip 'private.user.' prefix and '.orders' suffix to get the UUID
+        const userId = channel.slice('private.user.'.length, -'.orders'.length);
+        sendToUser(
+          userId,
+          JSON.stringify({ channel: 'private:orders', data: JSON.parse(message) })
+        );
+      }
+    } catch (err) {
+      fastify.log.error({ err }, 'WS Redis bridge error');
+    }
+  });
 
   return fastify;
 }
