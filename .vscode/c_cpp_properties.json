@@ -1,0 +1,16 @@
+{
+  "configurations": [
+    {
+      "name": "Mac",
+      "includePath": [
+        "${workspaceFolder}/engine/matching-engine-cpp/include",
+        "${workspaceFolder}/engine/matching-engine-cpp/build/_deps/googletest-src/googletest/include"
+      ],
+      "cppStandard": "c++20",
+      "macFrameworkPath": [
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks"
+      ]
+    }
+  ],
+  "version": 4
+}
