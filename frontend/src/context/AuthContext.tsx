@@ -1,7 +1,8 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { User } from '../types';
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
+const API_URL = import.meta.env.VITE_API_URL ?? 'https://skillful-trust-production-832b.up.railway.app';
+
 
 interface AuthContextType {
   token: string | null;

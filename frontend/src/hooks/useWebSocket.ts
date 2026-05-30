@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ConnectionStatus, WsMessage } from '../types';
 
-const WS_URL = import.meta.env.VITE_WS_URL ?? 'ws://localhost:4000';
+const WS_URL = import.meta.env.VITE_WS_URL ?? 'wss://skillful-trust-production-832b.up.railway.app';
 
 export function useWebSocket(token: string | null, channels: string[]) {
   const [lastMessage,      setLastMessage]      = useState<WsMessage | null>(null);
