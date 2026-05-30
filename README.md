@@ -3,7 +3,7 @@
 A production-grade trading exchange simulator featuring a C++20 matching engine,
 microservice architecture, JWT authentication, Redis event streaming, and live
 WebSocket market data.
-
+Live: https://trading-exchange-simulator.vercel.app/login
 ## Architecture
 
 ```
