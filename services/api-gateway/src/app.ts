@@ -46,7 +46,7 @@ export async function buildApp() {
   // wildcard would also prevent credentials from being sent
   await fastify.register(cors, {
     origin: config.NODE_ENV === 'production'
-      ? 'https://yourdomain.com'
+      ? 'https://trading-exchange-simulator.vercel.app'
       : 'http://localhost:3000',
     credentials: true,
   });
