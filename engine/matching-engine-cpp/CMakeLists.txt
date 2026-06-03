@@ -29,6 +29,10 @@ target_include_directories(engine_lib PUBLIC include vendor)
 add_executable(engine src/main.cpp)
 target_link_libraries(engine PRIVATE engine_lib)
 
+# Benchmark ---------------------------
+add_executable(benchmark src/benchmark.cpp)
+target_link_libraries(benchmark PRIVATE engine_lib)
+
 # ── Tests ─────────────────────────────────────────────────
 include(FetchContent)
 FetchContent_Declare(

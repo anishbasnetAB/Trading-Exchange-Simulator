@@ -54,18 +54,20 @@ live: https://trading-exchange-simulator.vercel.app
 
 ## Performance
 
-| Metric                              | Value                                      |
-|-------------------------------------|--------------------------------------------|
-| Matching algorithm complexity       | O(log n) per order — std::map price levels |
-| Price-time priority                 | std::deque FIFO per price level            |
-| Lock contention                     | None — single-threaded deterministic loop  |
-| End-to-end order flow latency       | < 50ms (place order → WebSocket push)      |
-| API average response time           | ~5ms (measured in Railway deploy logs)     |
-| Trade persistence                   | Atomic 3-write PostgreSQL transaction      |
-| Unit tests                          | 11 passing (OrderBook + MatchingEngine)    |
+Benchmarked on Apple M-series, 1,000,000 orders, alternating buy/sell at matching price (worst-case full match scenario).
 
-The matching engine is single-threaded by design. Matching is an inherently serial operation — determinism and correctness take priority over parallelism. The engine never blocks on I/O; all database writes happen asynchronously downstream via Redis consumers.
+| Metric                        | Value                                    |
+|-------------------------------|------------------------------------------|
+| Throughput                    | 1,626,655 orders/sec                     |
+| Median match latency (p50)    | 583 ns                                   |
+| Tail latency (p99)            | 958 ns                                   |
+| Tail latency (p99.9)          | 1,667 ns                                 |
+| Trades executed (500k pairs)  | 500,000                                  |
+| Algorithm complexity          | O(log n) — std::map price level indexing |
+| Concurrency model             | Single-threaded, no lock contention      |
+| Unit tests                    | 11 passing (OrderBook + MatchingEngine)  |
 
+The engine processes over 1.6 million orders per second with sub-microsecond median latency. All 500,000 opposing pairs matched correctly. The single-threaded design eliminates lock contention and produces deterministic, reproducible results.
 ---
 
 ## Architecture and Design Decisions
